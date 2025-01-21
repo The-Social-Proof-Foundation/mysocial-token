@@ -9,14 +9,20 @@ describe("UsernameRegistry", function () {
   let addr2;
   let mockToken;
 
-  beforeEach(async function () {
+  before(async function () {
     [owner, addr1, addr2] = await ethers.getSigners();
     
     const MockToken = await ethers.getContractFactory("MockERC20");
-    mockToken = await MockToken.deploy("MySocialToken", "MySo");
-    
+    mockToken = await MockToken.deploy("MySocialToken", "MySo", 18);
+    await mockToken.waitForDeployment();
+
+    console.log("MockToken deployed at:", mockToken.target);
+
     UsernameRegistry = await ethers.getContractFactory("UsernameRegistry");
-    usernameRegistry = await UsernameRegistry.deploy(mockToken.getAddress());
+    usernameRegistry = await UsernameRegistry.deploy(mockToken.target);
+    await usernameRegistry.waitForDeployment();
+
+    console.log("UsernameRegistry deployed at:", usernameRegistry.target);
 
     await mockToken.mint(owner.address, ethers.parseEther("10"));
     await mockToken.mint(addr1.address, ethers.parseEther("10"));
@@ -85,6 +91,22 @@ describe("UsernameRegistry", function () {
   });
 
   describe("Recent Usernames", function () {
+    beforeEach(async function() {
+      // Deploy fresh contracts for each test
+      const MockToken = await ethers.getContractFactory("MockERC20");
+      mockToken = await MockToken.deploy("MySocialToken", "MySo", 18);
+      await mockToken.waitForDeployment();
+
+      UsernameRegistry = await ethers.getContractFactory("UsernameRegistry");
+      usernameRegistry = await UsernameRegistry.deploy(mockToken.target);
+      await usernameRegistry.waitForDeployment();
+
+      // Mint tokens for testing
+      await mockToken.mint(owner.address, ethers.parseEther("10"));
+      await mockToken.mint(addr1.address, ethers.parseEther("10"));
+      await mockToken.mint(addr2.address, ethers.parseEther("10"));
+    });
+
     it("Should track recent usernames correctly", async function () {
       await usernameRegistry.connect(addr1).reserveUsername("user1");
       await usernameRegistry.connect(addr2).reserveUsername("user2");
@@ -94,22 +116,39 @@ describe("UsernameRegistry", function () {
     });
 
     it("Should handle requesting more usernames than available", async function () {
-      await usernameRegistry.connect(addr1).reserveUsername("user1");
+      const username = "singleuser123";
+      await usernameRegistry.connect(addr1).reserveUsername(username);
       
       const recentUsernames = await usernameRegistry.getRecentUsernames(5);
       expect(recentUsernames.length).to.equal(1);
+      expect(recentUsernames[0]).to.equal(username);
+
+      // Print all registered usernames
+      console.log("\nRegistered usernames:");
+      for (let i = 0; i < recentUsernames.length; i++) {
+        console.log(`${i + 1}. ${recentUsernames[i]}`);
+      }
     });
 
     it("Should maintain max recent usernames limit", async function () {
       this.timeout(120000);
       
+      // Generate unique usernames
       for (let i = 0; i < 102; i++) {
-        await usernameRegistry.connect(addr1).reserveUsername(`user${i}`);
+        const username = `uniqueuser${i}`;
+        await usernameRegistry.connect(addr1).reserveUsername(username);
       }
       
       const maxRecent = await usernameRegistry.MAX_RECENT_USERNAMES();
       const recentUsernames = await usernameRegistry.getRecentUsernames(200);
       expect(recentUsernames.length).to.equal(maxRecent);
+
+      // Print all registered usernames
+      console.log("\nRegistered usernames (showing last 10):");
+      const lastTen = recentUsernames.slice(-10);
+      for (let i = 0; i < lastTen.length; i++) {
+        console.log(`${recentUsernames.length - 10 + i + 1}. ${lastTen[i]}`);
+      }
     }).timeout(120000);
   });
 

@@ -16,8 +16,14 @@ contract UsernameRegistry is Ownable {
     // Mapping from username hash to username data
     mapping(bytes32 => UsernameData) public usernames;
     
-    // Array to store recent username hashes
-    bytes32[] public recentUsernames;
+    // Change the recentUsernames array to store structs with both hash and name
+    struct RecentUsername {
+        bytes32 hash;
+        string name;
+    }
+    
+    // Update the storage variable
+    RecentUsername[] public recentUsernames;
     uint256 public constant MAX_RECENT_USERNAMES = 100;
     
     // Add restricted usernames set
@@ -67,7 +73,10 @@ contract UsernameRegistry is Ownable {
             }
             recentUsernames.pop();
         }
-        recentUsernames.push(usernameHash);
+        recentUsernames.push(RecentUsername({
+            hash: usernameHash,
+            name: username
+        }));
 
         emit UsernameReserved(username, msg.sender);
     }
@@ -85,7 +94,7 @@ contract UsernameRegistry is Ownable {
 
         // Remove from recent usernames if present
         for (uint i = 0; i < recentUsernames.length; i++) {
-            if (recentUsernames[i] == usernameHash) {
+            if (recentUsernames[i].hash == usernameHash) {
                 // Shift remaining elements left
                 for (uint j = i; j < recentUsernames.length - 1; j++) {
                     recentUsernames[j] = recentUsernames[j + 1];
@@ -111,16 +120,15 @@ contract UsernameRegistry is Ownable {
     /**
      * @dev Gets the list of recent usernames
      * @param count The number of recent usernames to return
-     * @return bytes32[] Array of username hashes
+     * @return string[] Array of username strings
      */
-    function getRecentUsernames(uint256 count) external view returns (bytes32[] memory) {
-        uint256 resultCount = count > recentUsernames.length ? recentUsernames.length : count;
-        bytes32[] memory result = new bytes32[](resultCount);
+    function getRecentUsernames(uint256 count) public view returns (string[] memory) {
+        uint256 actualCount = count > recentUsernames.length ? recentUsernames.length : count;
+        string[] memory result = new string[](actualCount);
         
-        for (uint256 i = 0; i < resultCount; i++) {
-            result[i] = recentUsernames[recentUsernames.length - 1 - i];
+        for(uint i = 0; i < actualCount; i++) {
+            result[i] = recentUsernames[recentUsernames.length - 1 - i].name;
         }
-        
         return result;
     }
 
