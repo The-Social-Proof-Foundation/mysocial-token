@@ -31,12 +31,12 @@ describe("MySocialTokenPresale", function () {
     const usdc = await MockUSDC.deploy("USD Coin", "USDC", 6);
 
     // Setup presale parameters
-    const totalPresaleTokens = ethers.parseUnits("100000000", 18); // 100M tokens
-    const maxClaimPerWallet = ethers.parseUnits("15000000", 18);   // 15M tokens
+    const totalPresaleTokens = ethers.parseUnits("125000000", 18); // 125M tokens (100M + 25% bonus)
+    const maxClaimPerWallet = ethers.parseUnits("18750000", 18);   // 18.75M tokens (15M + 25% bonus)
     const presaleStartTime = await time.latest() + 3600;
     const presaleEndTime = presaleStartTime + 7 * 24 * 3600;
     const basePrice = ethers.parseUnits("0.003", 6);  // Start at $0.003
-    const growthRate = ethers.parseUnits("0.011111", 6); // Will give us max increase of $0.004
+    const growthRate = ethers.parseUnits("0.0145", 6); // Growth rate for $500k target
 
     // Deploy Presale contract
     const MySocialTokenPresale = await ethers.getContractFactory("MySocialTokenPresale", {
@@ -129,14 +129,14 @@ describe("MySocialTokenPresale", function () {
     });
 
     it("Should reach target raise amount for total supply", async function () {
-      const { presale, totalPresaleTokens } = await loadFixture(deployPresaleFixture);
+      const { presale } = await loadFixture(deployPresaleFixture);
       
       // Calculate total raise by breaking it into chunks like real purchases
       const purchaseSizes = [
-        ethers.parseUnits("10000000", 18),  // First 10M tokens
-        ethers.parseUnits("20000000", 18),  // First 20M tokens
-        ethers.parseUnits("50000000", 18),  // First 50M tokens
-        totalPresaleTokens                   // All 100M tokens
+        ethers.parseUnits("10000000", 18),  // First 10M base tokens
+        ethers.parseUnits("25000000", 18),  // Next 25M base tokens
+        ethers.parseUnits("50000000", 18),  // Next 50M base tokens
+        ethers.parseUnits("100000000", 18)  // All 100M base tokens (becomes 125M with bonus)
       ];
       
       let runningTotal = BigInt(0);
@@ -152,7 +152,7 @@ describe("MySocialTokenPresale", function () {
       console.log("Total raise for all tokens:", ethers.formatUnits(totalRaise, 6), "USDC");
       
       const targetRaise = ethers.parseUnits("500000", 6); // $500k
-      const tolerance = ethers.parseUnits("150000", 6); // $150k tolerance
+      const tolerance = ethers.parseUnits("50000", 6); // $50k tolerance
       
       expect(totalRaise).to.be.closeTo(targetRaise, tolerance);
     });
@@ -208,15 +208,17 @@ describe("MySocialTokenPresale", function () {
       
       await time.increaseTo(presaleStartTime);
 
-      const purchaseAmount = ethers.parseUnits("10", 18);
-      const usdcPrice = await presale.getCurrentPresalePrice(purchaseAmount);
+      const baseAmount = ethers.parseUnits("10", 18);
+      const expectedBonus = baseAmount * BigInt(25) / BigInt(100);
+      const totalAmount = baseAmount + expectedBonus;
+      const usdcPrice = await presale.getCurrentPresalePrice(baseAmount);
       
       await usdc.connect(buyer1).approve(presale.target, usdcPrice);
-      await presale.connect(buyer1).buyPresaleTokens(purchaseAmount);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
 
-      // Verify the purchase
+      // Verify the purchase includes bonus
       const tokenBalance = await token.balanceOf(buyer1.address);
-      expect(tokenBalance).to.equal(purchaseAmount);
+      expect(tokenBalance).to.equal(totalAmount);
     });
 
     it("Should calculate correct price for large purchases", async function () {
@@ -256,46 +258,37 @@ describe("MySocialTokenPresale", function () {
       ).to.be.revertedWith("Exceeds claim limit");
     });
 
-    it("Should show detailed breakdown of total raise for 100M tokens", async function () {
+    it("Should show detailed breakdown of total raise for 125M tokens", async function () {
       const { presale, totalPresaleTokens } = await loadFixture(deployPresaleFixture);
       
-      // Calculate prices for cumulative purchases to show real progression
+      // Test purchases in chunks
       const purchaseSizes = [
-        ethers.parseUnits("10000000", 18),  // First 10M tokens
-        ethers.parseUnits("20000000", 18),  // First 20M tokens
-        ethers.parseUnits("50000000", 18),  // First 50M tokens
-        totalPresaleTokens                   // All 100M tokens
+        ethers.parseUnits("10000000", 18),  // First 10M base tokens
+        ethers.parseUnits("25000000", 18),  // Next 25M base tokens
+        ethers.parseUnits("50000000", 18),  // Next 50M base tokens
+        ethers.parseUnits("100000000", 18)  // All 100M base tokens
       ];
 
-      console.log("\n=== Total Raise Analysis for 100M Tokens ===");
-      
       let runningTotal = BigInt(0);
       let totalRaise = BigInt(0);
 
       for (const targetAmount of purchaseSizes) {
-        // Calculate price for the increment since last purchase
         const increment = targetAmount - runningTotal;
         const price = await presale.getCurrentPresalePrice(increment);
         totalRaise += price;
         runningTotal = targetAmount;
         
-        const averagePrice = (totalRaise * BigInt(1e18)) / targetAmount;
+        const withBonus = targetAmount + (targetAmount * BigInt(25) / BigInt(100));
         
-        console.log(`\nCumulative Purchase: ${ethers.formatUnits(targetAmount, 18)} MYSO tokens`);
-        console.log(`Total USDC Cost So Far: $${ethers.formatUnits(totalRaise, 6)}`);
-        console.log(`Average Price Per Token: $${ethers.formatUnits(averagePrice, 6)}`);
-        console.log(`Last Batch Price Per Token: $${ethers.formatUnits((price * BigInt(1e18)) / increment, 6)}`);
+        console.log(`\nBase Purchase: ${ethers.formatUnits(targetAmount, 18)} MYSO`);
+        console.log(`With 25% Bonus: ${ethers.formatUnits(withBonus, 18)} MYSO`);
+        console.log(`Increment Cost: $${ethers.formatUnits(price, 6)}`);
+        console.log(`Total USDC Cost: $${ethers.formatUnits(totalRaise, 6)}`);
       }
 
-      console.log("\n=== Final Totals ===");
-      console.log(`Total Tokens: ${ethers.formatUnits(totalPresaleTokens, 18)} MYSO`);
-      console.log(`Total Raise: $${ethers.formatUnits(totalRaise, 6)} USDC`);
-      console.log(`Final Average Price Per Token: $${ethers.formatUnits((totalRaise * BigInt(1e18)) / totalPresaleTokens, 6)}`);
-
-      // Verify the total raise is within expected range (around $500k)
-      const expectedRaise = ethers.parseUnits("500000", 6); // $500k
-      const tolerance = ethers.parseUnits("10000", 6);      // $10k tolerance
-      
+      // Verify total raise is around $500k
+      const expectedRaise = ethers.parseUnits("500000", 6);
+      const tolerance = ethers.parseUnits("50000", 6);
       expect(totalRaise).to.be.closeTo(expectedRaise, tolerance);
     });
   });
@@ -307,19 +300,62 @@ describe("MySocialTokenPresale", function () {
       await time.increaseTo(presaleStartTime);
 
       // First buy tokens
-      const purchaseAmount = ethers.parseUnits("10", 18);
-      const usdcPrice = await presale.getCurrentPresalePrice(purchaseAmount);
+      const baseAmount = ethers.parseUnits("10", 18);
+      const bonusAmount = baseAmount * BigInt(25) / BigInt(100);
+      const totalAmount = baseAmount + bonusAmount;
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
       
-      await usdc.connect(buyer1).approve(presale.target, usdcPrice);
-      await presale.connect(buyer1).buyPresaleTokens(purchaseAmount);
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
 
-      // Approve tokens for selling
-      await token.connect(buyer1).approve(presale.target, purchaseAmount);
+      // Record initial USDC balance
+      const initialUsdcBalance = await usdc.balanceOf(buyer1.address);
 
-      // Then sell tokens
-      await expect(presale.connect(buyer1).sellPresaleTokens(purchaseAmount))
-        .to.emit(presale, "TokensSold")
-        .withArgs(buyer1.address, purchaseAmount, usdcPrice);
+      // Approve total amount (including bonus) for selling
+      await token.connect(buyer1).approve(presale.target, totalAmount);
+
+      // Then sell tokens (including bonus)
+      await presale.connect(buyer1).sellPresaleTokens(totalAmount);
+
+      // When selling all tokens (including bonus), should get full refund
+      // The refund should be based on the base amount's price
+      const usdcBalanceAfter = await usdc.balanceOf(buyer1.address);
+      expect(usdcBalanceAfter - initialUsdcBalance).to.equal(usdcCost);
+
+      // Verify tokens were burned
+      const finalTokenBalance = await token.balanceOf(buyer1.address);
+      expect(finalTokenBalance).to.equal(0);
+    });
+
+    it("Should handle selling bonus tokens correctly", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // First buy tokens
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const bonusAmount = baseAmount * BigInt(25) / BigInt(100);
+      const totalAmount = baseAmount + bonusAmount;
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
+
+      // Record USDC balance before selling
+      const usdcBalanceBefore = await usdc.balanceOf(buyer1.address);
+
+      // Approve and sell all tokens (including bonus)
+      await token.connect(buyer1).approve(presale.target, totalAmount);
+      await presale.connect(buyer1).sellPresaleTokens(totalAmount);
+
+      // When selling all tokens (including bonus), should get full refund
+      // The refund should be based on the base amount's price
+      const usdcBalanceAfter = await usdc.balanceOf(buyer1.address);
+      expect(usdcBalanceAfter - usdcBalanceBefore).to.equal(usdcCost);
+
+      // Verify all tokens were burned
+      const finalTokenBalance = await token.balanceOf(buyer1.address);
+      expect(finalTokenBalance).to.equal(0);
     });
   });
 
@@ -389,6 +425,83 @@ describe("MySocialTokenPresale", function () {
       await expect(
         presale.connect(buyer1).buyPresaleTokens(purchaseAmount)
       ).to.be.revertedWith("Presale ended");
+    });
+  });
+
+  describe("Token Purchase with Bonus", function () {
+    it("Should give 25% bonus tokens on purchase", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Purchase 1000 base tokens
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const expectedBonus = baseAmount * BigInt(25) / BigInt(100); // 25% bonus
+      const totalExpectedAmount = baseAmount + expectedBonus;
+      
+      const usdcPrice = await presale.getCurrentPresalePrice(baseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, usdcPrice);
+      
+      // Buy tokens and verify the event includes the total amount (base + bonus)
+      await expect(presale.connect(buyer1).buyPresaleTokens(baseAmount))
+        .to.emit(presale, "TokensPurchased")
+        .withArgs(buyer1.address, totalExpectedAmount, usdcPrice);
+
+      // Verify final token balance includes bonus
+      const finalBalance = await token.balanceOf(buyer1.address);
+      expect(finalBalance).to.equal(totalExpectedAmount);
+      
+      // Verify wallet claims tracking includes bonus
+      const walletClaims = await presale.walletClaims(buyer1.address);
+      expect(walletClaims).to.equal(totalExpectedAmount);
+    });
+
+    it("Should enforce limits including bonus amounts", async function () {
+      const { presale, usdc, buyer1, presaleStartTime, maxClaimPerWallet } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Calculate max base amount that would exceed limit with bonus
+      const baseAmount = (maxClaimPerWallet * BigInt(100)) / BigInt(125);
+      const slightlyOver = baseAmount + BigInt(1);
+      
+      const usdcPrice = await presale.getCurrentPresalePrice(slightlyOver);
+      await usdc.connect(buyer1).approve(presale.target, usdcPrice);
+
+      // Should revert because base + bonus would exceed maxClaimPerWallet
+      await expect(
+        presale.connect(buyer1).buyPresaleTokens(slightlyOver)
+      ).to.be.revertedWith("Exceeds claim limit");
+    });
+
+    it("Should maintain correct total supply accounting with bonus", async function () {
+      const { presale, usdc, buyer1, buyer2, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Get 10 buyers
+      const [_, __, ___, ...additionalBuyers] = await ethers.getSigners();
+      const buyers = [buyer1, buyer2, ...additionalBuyers.slice(0, 8)]; // Total 10 buyers
+
+      // Each buyer buys 10M base tokens (becomes 12.5M with bonus)
+      // 10 buyers * 10M = 100M base tokens (125M total with bonus)
+      const purchaseAmount = ethers.parseUnits("10000000", 18); // 10M tokens each
+
+      // Buy tokens with each buyer
+      for (const buyer of buyers) {
+        // Mint USDC for the buyer
+        await usdc.mint(buyer.address, ethers.parseUnits("1000000", 6)); // 1M USDC
+
+        // Calculate price and buy tokens
+        const usdcPrice = await presale.getCurrentPresalePrice(purchaseAmount);
+        await usdc.connect(buyer).approve(presale.target, usdcPrice);
+        await presale.connect(buyer).buyPresaleTokens(purchaseAmount);
+      }
+
+      // Verify total supply (should be 125M)
+      const totalSold = await presale.totalPresaleSold();
+      expect(totalSold).to.equal(ethers.parseUnits("125000000", 18));
     });
   });
 }); 

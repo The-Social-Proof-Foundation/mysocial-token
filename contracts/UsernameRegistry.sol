@@ -29,6 +29,9 @@ contract UsernameRegistry is Ownable {
     // Add restricted usernames set
     mapping(string => bool) private restrictedUsernames;
     
+    // Add reverse mapping from address to username hash
+    mapping(address => bytes32) public addressToUsername;
+    
     // Events
     event UsernameReserved(string username, address indexed owner);
     event UsernameReleased(string username, address indexed previousOwner);
@@ -58,12 +61,21 @@ contract UsernameRegistry is Ownable {
         
         bytes32 usernameHash = keccak256(bytes(username));
         require(usernames[usernameHash].owner == address(0), "Username already taken");
+        
+        // Clear any previous username for this address
+        bytes32 previousUsernameHash = addressToUsername[msg.sender];
+        if (previousUsernameHash != bytes32(0)) {
+            delete usernames[previousUsernameHash];
+        }
 
         // Store username data
         usernames[usernameHash] = UsernameData({
             owner: msg.sender,
             timestamp: block.timestamp
         });
+        
+        // Update reverse mapping
+        addressToUsername[msg.sender] = usernameHash;
 
         // Add to recent usernames
         if (recentUsernames.length >= MAX_RECENT_USERNAMES) {
@@ -91,6 +103,7 @@ contract UsernameRegistry is Ownable {
 
         address previousOwner = usernames[usernameHash].owner;
         delete usernames[usernameHash];
+        delete addressToUsername[msg.sender];
 
         // Remove from recent usernames if present
         for (uint i = 0; i < recentUsernames.length; i++) {
@@ -161,5 +174,26 @@ contract UsernameRegistry is Ownable {
      */
     function isRestricted(string calldata username) external view returns (bool) {
         return restrictedUsernames[username];
+    }
+
+    /**
+     * @dev Gets the username associated with an address
+     * @param user The address to look up
+     * @return username The username string, or empty string if no username is set
+     */
+    function getUsernameByAddress(address user) external view returns (string memory) {
+        bytes32 usernameHash = addressToUsername[user];
+        if (usernameHash == bytes32(0)) {
+            return "";
+        }
+        
+        // Find the username string from recentUsernames
+        for (uint i = 0; i < recentUsernames.length; i++) {
+            if (recentUsernames[i].hash == usernameHash) {
+                return recentUsernames[i].name;
+            }
+        }
+        
+        return ""; // Return empty string if username not found in recent list
     }
 }

@@ -2,8 +2,8 @@ const { ethers } = require("hardhat");
 
 async function main() {
     // Contract addresses from your deployment
-    const PRESALE_ADDRESS = "0xa591cc7749a7A40E02Ced0B82c66cddd70E8895E";
-    const TOKEN_ADDRESS = "0xFbCbd513cd7fA053001011C9bBC6E533ffe4558D";  // proxy address
+    const PRESALE_ADDRESS = "0x25033A650e24B0546198B8309964Ca36729A5eE4";
+    const TOKEN_ADDRESS = "0x42986E3c019E706C751D721ae1192be3Fa607b4B";  // proxy address
     const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";   // Sepolia USDC
 
     // Get contract instances
@@ -48,9 +48,9 @@ async function main() {
     console.log("Max claim per wallet:", ethers.formatUnits(maxClaimPerWallet, 18), "MYSO");
     console.log("Current wallet MySo supply:", ethers.formatUnits(currentWalletClaims, 18), "MYSO");
 
-    // 4. Buy tokens (1 MYSO token)
+    // 4. Buy tokens (10 MYSO tokens)
     console.log("Buying tokens...");
-    const tokenAmount = ethers.parseUnits("1", 18); // Using 18 decimals to match ERC20 standard
+    const tokenAmount = ethers.parseUnits("10", 18); // Using 18 decimals to match ERC20 standard
 
     // Check both supply and claim limits
     if (tokenAmount > remainingPresaleSupply) {

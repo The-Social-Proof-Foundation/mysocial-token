@@ -27,6 +27,9 @@ contract MySocialTokenPresale is ReentrancyGuard, Ownable {
     bool public acceptUsdc;
     uint256 public usdcDecimals;
 
+    // Add constant for bonus percentage
+    uint256 public constant BONUS_PERCENTAGE = 25;
+
     event TokensPurchased(address indexed buyer, uint256 amount, uint256 cost);
     event TokensSold(address indexed seller, uint256 amount, uint256 refund);
 
@@ -79,21 +82,29 @@ contract MySocialTokenPresale is ReentrancyGuard, Ownable {
         require(presaleActive, "Presale is not active");
         require(block.timestamp >= presaleStartTime, "Presale not started");
         require(block.timestamp <= presaleEndTime, "Presale ended");
-        require(totalPresaleSold + amount <= totalPresaleTokens, "Exceeds presale supply");
-        require(walletClaims[msg.sender] + amount <= maxClaimPerWallet, "Exceeds claim limit");
+        
+        // Calculate total amount including bonus
+        uint256 bonusAmount = (amount * BONUS_PERCENTAGE) / 100;
+        uint256 totalAmount = amount + bonusAmount;
+        
+        require(totalPresaleSold + totalAmount <= totalPresaleTokens, "Exceeds presale supply");
+        require(walletClaims[msg.sender] + totalAmount <= maxClaimPerWallet, "Exceeds claim limit");
 
+        // Price is calculated on the base amount, not including bonus
         uint256 usdcCost = _calculatePresalePrice(amount);
         
         require(usdcToken.balanceOf(msg.sender) >= usdcCost, "Insufficient USDC balance");
         require(usdcToken.transferFrom(msg.sender, address(this), usdcCost), "USDC transfer failed");
 
-        walletClaims[msg.sender] += amount;
-        totalPresaleSold += amount;
+        // Update state with total amount (including bonus)
+        walletClaims[msg.sender] += totalAmount;
+        totalPresaleSold += totalAmount;
         purchaseAmounts[msg.sender] += usdcCost;
 
-        token.mint(msg.sender, amount);
+        // Mint total amount including bonus
+        token.mint(msg.sender, totalAmount);
 
-        emit TokensPurchased(msg.sender, amount, usdcCost);
+        emit TokensPurchased(msg.sender, totalAmount, usdcCost);
     }
 
     function sellPresaleTokens(uint256 amount) external nonReentrant {
@@ -102,7 +113,19 @@ contract MySocialTokenPresale is ReentrancyGuard, Ownable {
         require(block.timestamp <= presaleEndTime, "Presale ended");
         require(token.balanceOf(msg.sender) >= amount, "Insufficient tokens to sell");
 
-        uint256 refund = purchaseAmounts[msg.sender] * amount / walletClaims[msg.sender];
+        // Check if selling all tokens
+        bool sellingAll = (amount == walletClaims[msg.sender]);
+        uint256 refund;
+
+        if (sellingAll) {
+            // If selling all tokens, give full refund
+            refund = purchaseAmounts[msg.sender];
+        } else {
+            // Otherwise calculate proportional refund based on base amount
+            uint256 baseAmount = (amount * 100) / (100 + BONUS_PERCENTAGE);
+            refund = purchaseAmounts[msg.sender] * baseAmount / (walletClaims[msg.sender] * 100 / (100 + BONUS_PERCENTAGE));
+        }
+
         require(refund > 0, "No refundable USDC available");
 
         walletClaims[msg.sender] -= amount;

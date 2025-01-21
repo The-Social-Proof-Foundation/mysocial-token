@@ -220,4 +220,38 @@ describe("UsernameRegistry", function () {
       ).to.not.be.reverted;
     });
   });
+
+  describe("Username Lookup by Address", function () {
+    it("Should return empty string for address with no username", async function () {
+      expect(await usernameRegistry.getUsernameByAddress(addr2.address)).to.equal("");
+    });
+
+    it("Should return correct username for address", async function () {
+      const username = "testuser123";
+      await usernameRegistry.connect(addr1).reserveUsername(username);
+      
+      expect(await usernameRegistry.getUsernameByAddress(addr1.address)).to.equal(username);
+    });
+
+    it("Should handle username changes for an address", async function () {
+      const username1 = "firstuser";
+      const username2 = "seconduser";
+      
+      // Reserve first username
+      await usernameRegistry.connect(addr1).reserveUsername(username1);
+      expect(await usernameRegistry.getUsernameByAddress(addr1.address)).to.equal(username1);
+      
+      // Change to second username
+      await usernameRegistry.connect(addr1).reserveUsername(username2);
+      expect(await usernameRegistry.getUsernameByAddress(addr1.address)).to.equal(username2);
+    });
+
+    it("Should clear username when released", async function () {
+      const username = "tempuser";
+      await usernameRegistry.connect(addr1).reserveUsername(username);
+      await usernameRegistry.connect(addr1).releaseUsername(username);
+      
+      expect(await usernameRegistry.getUsernameByAddress(addr1.address)).to.equal("");
+    });
+  });
 }); 
