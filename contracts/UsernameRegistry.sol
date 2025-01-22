@@ -53,7 +53,7 @@ contract UsernameRegistry is Ownable {
      * @param username The username to reserve
      */
     function reserveUsername(string calldata username) external {
-        require(mySoToken.balanceOf(msg.sender) >= 1e18, "Must hold at least 1 MySo token");
+        require(mySoToken.balanceOf(msg.sender) >= 1000e18, "Must hold at least 1,000 MySo tokens");
         require(bytes(username).length > 0, "Username cannot be empty");
         require(bytes(username).length <= 32, "Username too long");
         require(_isValidUsername(username), "Invalid username format");
