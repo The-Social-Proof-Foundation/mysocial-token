@@ -33,6 +33,14 @@ contract MySocialTokenPresale is ReentrancyGuard, Ownable {
     event TokensPurchased(address indexed buyer, uint256 amount, uint256 cost);
     event TokensSold(address indexed seller, uint256 amount, uint256 refund);
 
+    // Add event for new presale phase
+    event NewPresalePhase(
+        uint256 startTime,
+        uint256 endTime,
+        uint256 remainingTokens,
+        uint256 newGrowthRate
+    );
+
     constructor(
         address tokenAddress,
         address _usdcAddress,
@@ -162,11 +170,74 @@ contract MySocialTokenPresale is ReentrancyGuard, Ownable {
         require(usdcToken.transfer(owner(), balance), "USDC transfer failed");
     }
 
+    /**
+     * @notice Starts a new presale phase if there are remaining tokens from previous phase
+     * @param _startTime New presale start time
+     * @param _endTime New presale end time
+     * @param _newGrowthRate Optional new growth rate (0 to keep current rate)
+     */
+    function startNewPresalePhase(
+        uint256 _startTime,
+        uint256 _endTime,
+        uint256 _newGrowthRate
+    ) external onlyOwner {
+        // Check if there are remaining tokens from previous phase
+        uint256 remaining = remainingPresaleSupply();
+        require(remaining > 0, "No tokens remaining from previous phase");
+        
+        // Current presale must be ended or inactive
+        require(
+            !presaleActive || block.timestamp > presaleEndTime,
+            "Current presale still active"
+        );
+
+        // Validate time parameters
+        require(_endTime > _startTime, "End time must be after start time");
+        
+        // Update presale parameters
+        presaleStartTime = _startTime;
+        presaleEndTime = _endTime;
+        
+        // Update growth rate if provided (non-zero)
+        if (_newGrowthRate > 0) {
+            growthRate = _newGrowthRate;
+        }
+
+        // Activate the presale
+        presaleActive = true;
+        acceptUsdc = true;
+
+        emit NewPresalePhase(
+            presaleStartTime,
+            presaleEndTime,
+            remaining,
+            growthRate
+        );
+    }
+
     // ==============================
     // Safety Features
     // ==============================
 
     receive() external payable {
         revert("Direct ETH transfers not allowed");
+    }
+
+    function getRefundValue(uint256 tokenAmount) public view returns (uint256) {
+        require(tokenAmount > 0, "Amount must be greater than 0");
+        
+        address sender = msg.sender;
+        require(walletClaims[sender] > 0, "No tokens claimed");
+        
+        // If selling all tokens, return full purchase amount
+        if (tokenAmount == walletClaims[sender]) {
+            return purchaseAmounts[sender];
+        }
+        
+        // Calculate proportional refund based on base amount (excluding bonus)
+        uint256 baseAmount = (tokenAmount * 100) / (100 + BONUS_PERCENTAGE);
+        uint256 refund = purchaseAmounts[sender] * baseAmount / (walletClaims[sender] * 100 / (100 + BONUS_PERCENTAGE));
+        
+        return refund;
     }
 }

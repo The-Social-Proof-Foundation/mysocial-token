@@ -357,6 +357,208 @@ describe("MySocialTokenPresale", function () {
       const finalTokenBalance = await token.balanceOf(buyer1.address);
       expect(finalTokenBalance).to.equal(0);
     });
+
+    it("Should handle partial token sales correctly", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // First buy tokens
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const bonusAmount = baseAmount * BigInt(25) / BigInt(100);
+      const totalAmount = baseAmount + bonusAmount;
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
+
+      // Record initial balances
+      const initialUsdcBalance = await usdc.balanceOf(buyer1.address);
+      const initialTokenBalance = await token.balanceOf(buyer1.address);
+
+      // Sell half of total tokens (including proportional bonus)
+      const sellAmount = totalAmount / BigInt(2);
+      await token.connect(buyer1).approve(presale.target, sellAmount);
+      await presale.connect(buyer1).sellPresaleTokens(sellAmount);
+
+      // Verify USDC refund is proportional
+      const expectedRefund = usdcCost / BigInt(2);
+      const finalUsdcBalance = await usdc.balanceOf(buyer1.address);
+      expect(finalUsdcBalance - initialUsdcBalance).to.equal(expectedRefund);
+
+      // Verify remaining token balance
+      const finalTokenBalance = await token.balanceOf(buyer1.address);
+      expect(finalTokenBalance).to.equal(totalAmount - sellAmount);
+    });
+
+    it("Should prevent selling more tokens than owned", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Buy some tokens first
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
+
+      const totalReceived = await token.balanceOf(buyer1.address);
+      
+      // Try to sell more than owned
+      const sellAmount = totalReceived + BigInt(1);
+      await token.connect(buyer1).approve(presale.target, sellAmount);
+      
+      await expect(
+        presale.connect(buyer1).sellPresaleTokens(sellAmount)
+      ).to.be.revertedWith("Insufficient tokens to sell");
+    });
+
+    it("Should track total sold tokens correctly after sales", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Buy tokens
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const bonusAmount = baseAmount * BigInt(25) / BigInt(100);
+      const totalAmount = baseAmount + bonusAmount;
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
+
+      const initialTotalSold = await presale.totalPresaleSold();
+
+      // Sell all tokens
+      await token.connect(buyer1).approve(presale.target, totalAmount);
+      await presale.connect(buyer1).sellPresaleTokens(totalAmount);
+
+      // Verify total sold is reduced correctly
+      const finalTotalSold = await presale.totalPresaleSold();
+      expect(finalTotalSold).to.equal(initialTotalSold - totalAmount);
+    });
+
+    it("Should prevent selling back to presale contract after presale ends", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime, presaleEndTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Buy tokens during presale
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
+
+      // Move time to after presale
+      await time.increaseTo(presaleEndTime + 1);
+
+      // Try to sell tokens back to presale contract
+      const sellAmount = await token.balanceOf(buyer1.address);
+      await token.connect(buyer1).approve(presale.target, sellAmount);
+      
+      await expect(
+        presale.connect(buyer1).sellPresaleTokens(sellAmount)
+      ).to.be.revertedWith("Presale ended");
+
+      // However, the token itself should still be transferable
+      const buyer2 = (await ethers.getSigners())[2];
+      await token.connect(buyer1).transfer(buyer2.address, sellAmount);
+      expect(await token.balanceOf(buyer2.address)).to.equal(sellAmount);
+    });
+
+    it("Should allow withdrawal even if some users sold tokens during presale", async function () {
+      const { presale, usdc, token, owner, buyer1, presaleStartTime, presaleEndTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Buy tokens
+      const purchaseAmount = ethers.parseUnits("1000000", 18);
+      const price = await presale.getCurrentPresalePrice(purchaseAmount);
+      
+      // Mint USDC to buyer before purchase
+      await usdc.mint(buyer1.address, price);
+      await usdc.connect(buyer1).approve(presale.target, price);
+      await presale.connect(buyer1).buyPresaleTokens(purchaseAmount);
+
+      // Sell half back during presale
+      const totalReceived = await token.balanceOf(buyer1.address);
+      const sellAmount = totalReceived / BigInt(2);
+      await token.connect(buyer1).approve(presale.target, sellAmount);
+      await presale.connect(buyer1).sellPresaleTokens(sellAmount);
+
+      // Move to after presale
+      await time.increaseTo(presaleEndTime + 1);
+
+      // Record balances before withdrawal
+      const presaleBalance = await usdc.balanceOf(presale.target);
+      const initialOwnerBalance = await usdc.balanceOf(owner.address);
+
+      // Owner withdraws
+      await presale.connect(owner).withdrawUsdc();
+
+      // Verify correct amount withdrawn
+      const finalOwnerBalance = await usdc.balanceOf(owner.address);
+      expect(finalOwnerBalance - initialOwnerBalance).to.equal(presaleBalance);
+      expect(await usdc.balanceOf(presale.target)).to.equal(0);
+    });
+
+    it("Should calculate correct refund value for full token sale", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Buy tokens
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
+      
+      // Mint USDC and buy tokens
+      await usdc.mint(buyer1.address, usdcCost);
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
+
+      // Get total amount including bonus
+      const totalAmount = await token.balanceOf(buyer1.address);
+      
+      // Check refund value matches original cost when selling all
+      const refundValue = await presale.connect(buyer1).getRefundValue(totalAmount);
+      expect(refundValue).to.equal(usdcCost);
+    });
+
+    it("Should calculate correct refund value for partial token sale", async function () {
+      const { presale, usdc, token, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Buy tokens
+      const baseAmount = ethers.parseUnits("1000", 18);
+      const usdcCost = await presale.getCurrentPresalePrice(baseAmount);
+      
+      // Mint USDC and buy tokens
+      await usdc.mint(buyer1.address, usdcCost);
+      await usdc.connect(buyer1).approve(presale.target, usdcCost);
+      await presale.connect(buyer1).buyPresaleTokens(baseAmount);
+
+      // Get total amount including bonus
+      const totalAmount = await token.balanceOf(buyer1.address);
+      
+      // Check refund value for half the tokens
+      const halfAmount = totalAmount / BigInt(2);
+      const refundValue = await presale.connect(buyer1).getRefundValue(halfAmount);
+      expect(refundValue).to.equal(usdcCost / BigInt(2));
+    });
+
+    it("Should revert getRefundValue for user with no tokens", async function () {
+      const { presale, buyer1, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      const amount = ethers.parseUnits("1000", 18);
+      await expect(
+        presale.connect(buyer1).getRefundValue(amount)
+      ).to.be.revertedWith("No tokens claimed");
+    });
   });
 
   describe("Admin Functions", function () {
@@ -388,6 +590,57 @@ describe("MySocialTokenPresale", function () {
       const finalBalance = await usdc.balanceOf(owner.address);
       
       expect(finalBalance - initialBalance).to.equal(usdcPrice);
+    });
+
+    it("Should allow owner to withdraw all USDC after presale ends", async function () {
+      const { presale, usdc, token, owner, buyer1, buyer2, presaleStartTime, presaleEndTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      // Multiple purchases during presale
+      const purchase1Amount = ethers.parseUnits("1000000", 18); // 1M tokens
+      const purchase2Amount = ethers.parseUnits("2000000", 18); // 2M tokens
+      
+      const price1 = await presale.getCurrentPresalePrice(purchase1Amount);
+      const price2 = await presale.getCurrentPresalePrice(purchase2Amount);
+      
+      // First buyer purchase - mint and give high allowance
+      await usdc.mint(buyer1.address, price1);
+      await usdc.connect(buyer1).approve(presale.target, ethers.MaxUint256); // Approve max amount
+      await presale.connect(buyer1).buyPresaleTokens(purchase1Amount);
+      
+      // Second buyer purchase - mint and give high allowance
+      await usdc.mint(buyer2.address, price2);
+      await usdc.connect(buyer2).approve(presale.target, ethers.MaxUint256); // Approve max amount
+      await presale.connect(buyer2).buyPresaleTokens(purchase2Amount);
+
+      // Move to after presale ends
+      await time.increaseTo(presaleEndTime + 1);
+
+      // Record initial balances
+      const initialOwnerBalance = await usdc.balanceOf(owner.address);
+      const presaleBalance = await usdc.balanceOf(presale.target);
+
+      // Owner withdraws funds
+      await presale.connect(owner).withdrawUsdc();
+
+      // Verify owner received all USDC
+      const finalOwnerBalance = await usdc.balanceOf(owner.address);
+      expect(finalOwnerBalance - initialOwnerBalance).to.equal(presaleBalance);
+      
+      // Verify presale contract is empty
+      expect(await usdc.balanceOf(presale.target)).to.equal(0);
+    });
+
+    it("Should prevent non-owner from withdrawing USDC", async function () {
+      const { presale, buyer1, presaleEndTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleEndTime + 1);
+
+      await expect(
+        presale.connect(buyer1).withdrawUsdc()
+      ).to.be.revertedWithCustomError(presale, "OwnableUnauthorizedAccount")
+        .withArgs(buyer1.address);
     });
   });
 
@@ -502,6 +755,106 @@ describe("MySocialTokenPresale", function () {
       // Verify total supply (should be 125M)
       const totalSold = await presale.totalPresaleSold();
       expect(totalSold).to.equal(ethers.parseUnits("125000000", 18));
+    });
+  });
+
+  describe("Presale Phases", function () {
+    it("Should allow starting new phase after previous ends", async function () {
+      const { presale, owner, presaleEndTime } = await loadFixture(deployPresaleFixture);
+      
+      // Wait until first phase ends
+      await time.increaseTo(presaleEndTime + 1);
+
+      // Start new phase
+      const newStartTime = presaleEndTime + 3600; // 1 hour after previous end
+      const newEndTime = newStartTime + (7 * 24 * 3600); // 7 days duration
+      const newGrowthRate = ethers.parseUnits("0.02", 6); // New growth rate
+
+      await presale.connect(owner).startNewPresalePhase(
+        newStartTime,
+        newEndTime,
+        newGrowthRate
+      );
+
+      expect(await presale.presaleStartTime()).to.equal(newStartTime);
+      expect(await presale.presaleEndTime()).to.equal(newEndTime);
+      expect(await presale.growthRate()).to.equal(newGrowthRate);
+      expect(await presale.presaleActive()).to.be.true;
+    });
+
+    it("Should prevent starting new phase while current is active", async function () {
+      const { presale, owner, presaleStartTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleStartTime);
+
+      const newStartTime = presaleStartTime + 3600;
+      const newEndTime = newStartTime + (7 * 24 * 3600);
+      const newGrowthRate = ethers.parseUnits("0.02", 6);
+
+      await expect(
+        presale.connect(owner).startNewPresalePhase(
+          newStartTime,
+          newEndTime,
+          newGrowthRate
+        )
+      ).to.be.revertedWith("Current presale still active");
+    });
+
+    it("Should maintain correct token accounting across phases", async function () {
+      const { presale, usdc, token, buyer1, owner, presaleEndTime } = await loadFixture(deployPresaleFixture);
+      
+      // Buy tokens in first phase
+      await time.increaseTo(await presale.presaleStartTime());
+      const firstPhaseAmount = ethers.parseUnits("1000", 18);
+      const firstPhasePrice = await presale.getCurrentPresalePrice(firstPhaseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, firstPhasePrice);
+      await presale.connect(buyer1).buyPresaleTokens(firstPhaseAmount);
+
+      // Wait for first phase to end and start new phase
+      await time.increaseTo(presaleEndTime + 1);
+      
+      const newStartTime = presaleEndTime + 3600;
+      const newEndTime = newStartTime + (7 * 24 * 3600);
+      const newGrowthRate = ethers.parseUnits("0.02", 6);
+
+      await presale.connect(owner).startNewPresalePhase(
+        newStartTime,
+        newEndTime,
+        newGrowthRate
+      );
+
+      // Buy tokens in second phase
+      await time.increaseTo(newStartTime);
+      const secondPhaseAmount = ethers.parseUnits("2000", 18);
+      const secondPhasePrice = await presale.getCurrentPresalePrice(secondPhaseAmount);
+      
+      await usdc.connect(buyer1).approve(presale.target, secondPhasePrice);
+      await presale.connect(buyer1).buyPresaleTokens(secondPhaseAmount);
+
+      // Verify total tokens bought (including bonuses)
+      const totalBaseAmount = firstPhaseAmount + secondPhaseAmount;
+      const totalExpectedAmount = totalBaseAmount + (totalBaseAmount * BigInt(25) / BigInt(100));
+      const finalBalance = await token.balanceOf(buyer1.address);
+      expect(finalBalance).to.equal(totalExpectedAmount);
+    });
+
+    it("Should enforce end time validation for new phase", async function () {
+      const { presale, owner, presaleEndTime } = await loadFixture(deployPresaleFixture);
+      
+      await time.increaseTo(presaleEndTime + 1);
+
+      const newStartTime = presaleEndTime + 3600;
+      const invalidEndTime = newStartTime - 1; // End time before start time
+      const newGrowthRate = ethers.parseUnits("0.02", 6);
+
+      await expect(
+        presale.connect(owner).startNewPresalePhase(
+          newStartTime,
+          invalidEndTime,
+          newGrowthRate
+        )
+      ).to.be.revertedWith("End time must be after start time");
     });
   });
 }); 

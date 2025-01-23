@@ -9,7 +9,7 @@ library BondingCurveLib {
     
     function calculatePrice(
         uint256 basePrice,      // $0.003 (3000)
-        uint256 growthRate,     // $0.004 (4000)
+        uint256 growthRate,
         uint256 totalPresaleTokens,
         uint256 currentSold,
         uint256 amount

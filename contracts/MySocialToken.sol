@@ -40,11 +40,11 @@ contract MySocialToken is Initializable, ERC20Upgradeable, OwnableUpgradeable, R
         __Ownable_init(initialOwner);
         __ReentrancyGuard_init();
         
-        basePrice = 0.0001 ether;  // Default values - can be changed by owner
-        growthRate = 0.00001 ether;
-        totalPresaleTokens = 100_000_000 * 10**18;  // 100M tokens
-        maxClaimPerWallet = 10_000_000 * 10**18;    // 10M tokens
-        presaleActive = true;
+        basePrice = 0.003 ether;  // Matches USDC price in deploy.js (converted to ETH)
+        growthRate = 0.0145 ether; // Matches USDC growth rate in deploy.js (converted to ETH)
+        totalPresaleTokens = 125_000_000 * 10**18;  // 125M tokens (100M + 25% bonus)
+        maxClaimPerWallet = 18_750_000 * 10**18;    // 18.75M tokens (15M + 25% bonus)
+        presaleActive = false;  // Will be activated based on timestamp checks in presale contract
     }
 
     // ==============================

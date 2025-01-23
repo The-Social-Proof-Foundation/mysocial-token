@@ -24,9 +24,11 @@ describe("UsernameRegistry", function () {
 
     console.log("UsernameRegistry deployed at:", usernameRegistry.target);
 
-    await mockToken.mint(owner.address, ethers.parseEther("10"));
-    await mockToken.mint(addr1.address, ethers.parseEther("10"));
-    await mockToken.mint(addr2.address, ethers.parseEther("10"));
+    // Mint 1000 tokens to each address for testing
+    const requiredTokens = ethers.parseEther("1001");
+    await mockToken.mint(owner.address, requiredTokens);
+    await mockToken.mint(addr1.address, requiredTokens);
+    await mockToken.mint(addr2.address, requiredTokens);
   });
 
   describe("Username Reservation", function () {
@@ -101,10 +103,11 @@ describe("UsernameRegistry", function () {
       usernameRegistry = await UsernameRegistry.deploy(mockToken.target);
       await usernameRegistry.waitForDeployment();
 
-      // Mint tokens for testing
-      await mockToken.mint(owner.address, ethers.parseEther("10"));
-      await mockToken.mint(addr1.address, ethers.parseEther("10"));
-      await mockToken.mint(addr2.address, ethers.parseEther("10"));
+      // Mint 1000 tokens for testing
+      const requiredTokens = ethers.parseEther("1001");
+      await mockToken.mint(owner.address, requiredTokens);
+      await mockToken.mint(addr1.address, requiredTokens);
+      await mockToken.mint(addr2.address, requiredTokens);
     });
 
     it("Should track recent usernames correctly", async function () {
@@ -210,11 +213,12 @@ describe("UsernameRegistry", function () {
       
       await expect(
         usernameRegistry.connect(noTokenUser).reserveUsername(username)
-      ).to.be.revertedWith("Must hold at least 1 MySo token");
+      ).to.be.revertedWith("Must hold at least 1,000 MySo tokens");
     });
 
     it("Should allow username reservation with sufficient tokens", async function () {
       const username = "test123";
+      // User already has 1000 tokens from setup
       await expect(
         usernameRegistry.connect(addr1).reserveUsername(username)
       ).to.not.be.reverted;
