@@ -99,11 +99,11 @@ async function main() {
   });
   const presale = await MySocialTokenPresale.deploy(
     await token.getAddress(),
-    "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC address on Base testnet
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base mainnet USDC address
     ethers.parseUnits("125000000", 18), // 125M tokens (100M + 25% bonus)
     ethers.parseUnits("18750000", 18),   // 18.75M tokens (15M + 25% bonus)
-    new Date('2025-01-20T18:00:00Z').getTime() / 1000,
-    new Date('2025-01-20T18:00:00Z').getTime() / 1000 + 7 * 24 * 60 * 60,
+    new Date('2025-01-23T18:00:00Z').getTime() / 1000,
+    new Date('2025-01-23T18:00:00Z').getTime() / 1000 + 7 * 24 * 60 * 60,
     ethers.parseUnits("0.003", 6),   // basePrice in USDC (6 decimals)
     ethers.parseUnits("0.0145", 6)   // growthRate that achieves $500k raise
   );
@@ -116,11 +116,11 @@ async function main() {
       address: await presale.getAddress(),
       constructorArguments: [
         await token.getAddress(),
-        "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC address
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base mainnet USDC address
         ethers.parseUnits("125000000", 18), // 125M tokens (100M + 25% bonus)
         ethers.parseUnits("18750000", 18),   // 18.75M tokens (15M + 25% bonus)
-        new Date('2025-01-20T18:00:00Z').getTime() / 1000,
-        new Date('2025-01-20T18:00:00Z').getTime() / 1000 + 7 * 24 * 60 * 60,
+        new Date('2025-01-23T18:00:00Z').getTime() / 1000,
+        new Date('2025-01-23T18:00:00Z').getTime() / 1000 + 7 * 24 * 60 * 60,
         ethers.parseUnits("0.003", 6),   // basePrice in USDC (6 decimals)
         ethers.parseUnits("0.0145", 6)   // growthRate that achieves $500k raise
       ],
