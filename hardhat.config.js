@@ -84,42 +84,70 @@ task("start-presale-phase", "Starts a new presale phase")
     try {
       const presale = await hre.ethers.getContractAt("MySocialTokenPresale", taskArgs.contract);
       
-      // Convert parameters to BigInt
+      // First check remaining supply
+      const remaining = await presale.remainingPresaleSupply();
+      console.log("\nRemaining supply:", hre.ethers.formatUnits(remaining, 18), "MYSO");
+      if (remaining <= 0) {
+        throw new Error("No tokens remaining from previous phase");
+      }
+
+      // Check current state
+      const isActive = await presale.presaleActive();
+      const currentEndTime = await presale.presaleEndTime();
+      const currentTime = Math.floor(Date.now() / 1000);
+      console.log("\nCurrent state:");
+      console.log("Active:", isActive);
+      console.log("Current time > end time:", currentTime > Number(currentEndTime));
+      
+      // Convert parameters
       const startTime = BigInt(taskArgs.start);
       const endTime = BigInt(taskArgs.end);
       const growthRate = hre.ethers.parseUnits(taskArgs.growth, 6); // Convert to 6 decimals for USDC
       
-      console.log("Starting new presale phase with parameters:");
-      console.log("Start time:", new Date(Number(startTime) * 1000).toISOString());
-      console.log("End time:", new Date(Number(endTime) * 1000).toISOString());
+      console.log("\nStarting new presale phase with parameters:");
+      console.log("Start time:", new Date(Number(startTime) * 1000).toLocaleString());
+      console.log("End time:", new Date(Number(endTime) * 1000).toLocaleString());
       console.log("Growth rate:", hre.ethers.formatUnits(growthRate, 6), "USDC");
       
-      // Get current time for validation
-      const currentTime = BigInt(Math.floor(Date.now() / 1000));
-      
-      // Validate parameters
-      if (startTime <= currentTime) {
-        throw new Error("Start time must be in the future");
-      }
-      if (endTime <= startTime) {
-        throw new Error("End time must be after start time");
-      }
-      
+      // Send transaction with timeout
+      console.log("\nSending transaction...");
       const tx = await presale.startNewPresalePhase(
         startTime,
         endTime,
-        growthRate
+        growthRate,
+        { gasLimit: 500000 } // Add explicit gas limit
       );
       
       console.log("Transaction hash:", tx.hash);
       console.log("Waiting for confirmation...");
-      await tx.wait();
-      console.log("New presale phase started successfully!");
+      
+      // Add timeout to wait
+      const receipt = await Promise.race([
+        tx.wait(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Transaction timeout after 60 seconds")), 60000)
+        )
+      ]);
+      
+      console.log("Transaction confirmed in block:", receipt.blockNumber);
       
     } catch (error) {
-      console.error("Error:", error.message);
+      console.error("\nError occurred:");
+      if (error.message) console.error("Message:", error.message);
       if (error.data) {
         console.error("Error data:", error.data);
+        try {
+          // Try to decode the error
+          const iface = new hre.ethers.Interface([
+            "error NoTokensRemaining()",
+            "error PresaleStillActive()",
+            "error InvalidTimeRange()"
+          ]);
+          const decoded = iface.parseError(error.data);
+          console.error("Decoded error:", decoded.name);
+        } catch (e) {
+          console.error("Raw error data:", error.data);
+        }
       }
       process.exit(1);
     }
