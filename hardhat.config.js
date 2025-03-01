@@ -212,3 +212,34 @@ task("toggle-presale", "Toggles the presale state")
       process.exit(1);
     }
   });
+
+task("withdraw-usdc", "Withdraws USDC from the presale contract")
+  .addParam("contract", "The presale contract address")
+  .addOptionalParam("nonce", "Custom nonce for the transaction")
+  .setAction(async (taskArgs, hre) => {
+    const { ethers } = hre;
+    const presale = await ethers.getContractAt("MySocialTokenPresale", taskArgs.contract);
+    
+    // Get contract info
+    const owner = await presale.owner();
+    const signer = await ethers.provider.getSigner();
+    const signerAddress = await signer.getAddress();
+    
+    console.log("\nContract Info:");
+    console.log("Owner:", owner);
+    console.log("Signer:", signerAddress);
+    console.log("Is Owner:", owner.toLowerCase() === signerAddress.toLowerCase());
+    
+    // Prepare transaction options
+    const txOptions = {};
+    if (taskArgs.nonce) {
+      txOptions.nonce = parseInt(taskArgs.nonce);
+    }
+    
+    console.log("\nWithdrawing USDC...");
+    const tx = await presale.withdrawUsdc(txOptions);
+    console.log("Transaction hash:", tx.hash);
+    console.log("Waiting for confirmation...");
+    await tx.wait();
+    console.log("USDC withdrawn successfully!");
+  });
