@@ -22,15 +22,10 @@ npx hardhat run scripts/deploy.js --network sepolia
 npx hardhat run --network sepolia scripts/get-address.js
 npx hardhat run scripts/check-presale.js --network sepolia
 npx hardhat get-timestamp --date 2025-02-06 --time 18:00
-npx hardhat start-presale-phase \                         
-  --network sepolia \
-  --contract 0xa7b9573230913218Ede3d1C94085cDc88FB535F0 \
-  --start 1738864800 \
-  --end 1739469600 \
-  --growth 0.0145
-npx hardhat toggle-presale \                           
-  --network sepolia \
-  --contract 0xa7b9573230913218Ede3d1C94085cDc88FB535F0
+npx hardhat start-presale-phase --network sepolia --contract 0xa7b9573230913218Ede3d1C94085cDc88FB535F0 --start 1738864800 --end 1739469600 --growth 0.0145
+npx hardhat toggle-presale --network sepolia --contract 0xa7b9573230913218Ede3d1C94085cDc88FB535F0
+npx hardhat withdraw-usdc --network sepolia --contract 0x8ffE0B3d3C743B5e3730693452058Ace3191a844
+npx hardhat transfer-token-ownership --network sepolia --contract 0xContractAddressHere --new-owner 0xNewOwnerAddressHere
 ```
 
 ## Technical Stack

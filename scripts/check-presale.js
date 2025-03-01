@@ -15,6 +15,14 @@ async function main() {
     const totalSold = await presale.totalPresaleSold();
     const basePrice = await presale.basePrice();
     const growthRate = await presale.growthRate();
+    
+    // Get USDC token address and contract
+    const usdcAddress = await presale.usdcToken();
+    const usdcToken = await ethers.getContractAt("IERC20", usdcAddress);
+    
+    // Get USDC balance of the presale contract (total raised)
+    const usdcBalance = await usdcToken.balanceOf(PRESALE_ADDRESS);
+    const usdcDecimals = await presale.usdcDecimals();
 
     // Get current time for comparison
     const currentTime = Math.floor(Date.now() / 1000);
@@ -34,6 +42,7 @@ async function main() {
     console.log("Total Sold:", ethers.formatUnits(totalSold, 18), "MYSO");
     console.log("Base Price:", ethers.formatUnits(basePrice, 6), "USDC");
     console.log("Growth Rate:", ethers.formatUnits(growthRate, 6));
+    console.log("Total Raised:", ethers.formatUnits(usdcBalance, Number(usdcDecimals)), "USDC");
 
     console.log("\nTime Status");
     console.log("===========");
