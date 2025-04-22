@@ -1,6 +1,6 @@
 # MySocial Token (MySo)
 
-Smart contracts for the MySocial Token (MySo) - the native token powering the MySocial Blockchain.
+Smart contracts for the MySocial Token (MySo) - the native token powering the MySocial Blockchain. The MySocial Token (MySo) is currently deployed on the Base blockchain (an Ethereum L2 solution) for the pre-sale phase & cross chain compatablility. When the MySocial mainnet launches, these MySo tokens will be bridgable between Base and the MySocial blockchain ecosystem.
 
 ## Overview
 
