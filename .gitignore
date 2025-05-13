@@ -15,3 +15,8 @@ node_modules
 
 # OpenZeppelin files
 /.openzeppelin
+
+# wallet keys
+/trading-wallets.json
+/volume_generator_config.json
+/scripts/volume_bot

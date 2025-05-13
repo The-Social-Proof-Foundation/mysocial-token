@@ -15,7 +15,7 @@ async function main() {
     const totalSold = await presale.totalPresaleSold();
     const basePrice = await presale.basePrice();
     const growthRate = await presale.growthRate();
-    
+
     // Get USDC token address and contract
     const usdcAddress = await presale.usdcToken();
     const usdcToken = await ethers.getContractAt("IERC20", usdcAddress);

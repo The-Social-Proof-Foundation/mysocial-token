@@ -2,6 +2,7 @@ require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
 require("@nomicfoundation/hardhat-verify");
 require('dotenv').config();
+const { types } = require("hardhat/config");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -42,6 +43,10 @@ module.exports = {
         }
       }
     }
+  },
+  upgrades: {
+    silenceWarnings: true,
+    unsafeAllow: ['external-library-linking']
   },
   etherscan: {
     apiKey: {
@@ -242,4 +247,47 @@ task("withdraw-usdc", "Withdraws USDC from the presale contract")
     console.log("Waiting for confirmation...");
     await tx.wait();
     console.log("USDC withdrawn successfully!");
+  });
+
+// Import the volume generator bot functions
+const volumeGeneratorBot = require('./scripts/volume-generator-bot');
+
+// Volume generator bot tasks
+task("create-wallets", "Create trading bot wallets")
+  .setAction(async (taskArgs, hre) => {
+    await volumeGeneratorBot.createWallets(hre.ethers.provider);
+  });
+
+task("fund-wallets", "Fund bot wallets with ETH and USDC")
+  .setAction(async (taskArgs, hre) => {
+    await volumeGeneratorBot.fundWallets(hre.ethers.provider);
+  });
+
+task("test-trade", "Test a single trade with the volume bot")
+  .setAction(async (taskArgs, hre) => {
+    await volumeGeneratorBot.testTrade(hre.ethers.provider);
+  });
+
+task("start-bot", "Start the automated trading bot")
+  .setAction(async (taskArgs, hre) => {
+    await volumeGeneratorBot.startBot(hre.ethers.provider);
+  });
+
+task("deactivate-wallets", "Deactivate a number of trading bot wallets")
+  .addParam("count", "Number of wallets to deactivate", 1, types.int)
+  .setAction(async (taskArgs, hre) => {
+    await volumeGeneratorBot.deactivateWallets(taskArgs.count);
+  });
+
+// Main combined task for the volume generator bot
+task("volume-generator", "Run the volume generator bot with specified commands")
+  .addPositionalParam("command", "Command to run: create-wallets, fund-wallets, test-trade, start, deactivate")
+  .addOptionalPositionalParam("count", "Number of wallets to process (for deactivate command)", 1, types.int)
+  .setAction(async (taskArgs, hre) => {
+    // Set environment variables for the script
+    process.env.BOT_COMMAND = taskArgs.command;
+    process.env.WALLET_COUNT = taskArgs.count.toString();
+    
+    // Run the main function from the bot script
+    await volumeGeneratorBot.main();
   });
