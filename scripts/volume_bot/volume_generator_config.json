@@ -1,0 +1,51 @@
+{
+  "rpc_url": "https://mainnet.base.org",
+  "token_address": "0xfdd6013bf2757018d8c087244f03e5a521b2d3b7",
+  "usdc_address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  "router_address": "0x2626664c2603336E57B271c5C0b26F421741e481",
+  "pool_address": "0x1efeb783d61a3b9788c758abf61a4b3efe7a9a6845644cff3d0ff80eea512876",
+  "treasury_address": "0x0a9A62e77326953E5e17948a1A7374dB6eCBB229",
+  
+  "trade_interval_min": 0.1,
+  "trade_interval_max": 1,
+  "min_trade_size": "0.26",
+  "max_trade_size": "0.44",
+  "num_trading_wallets": 3,
+  
+  "wallets_storage_path": "trading-wallets.json",
+  "slippage_tolerance": 200,
+  "pool_fee": 3000,
+  
+  "token_abi": [
+    {"constant": true, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "payable": false, "stateMutability": "view", "type": "function"},
+    {"constant": true, "inputs": [{"name": "owner", "type": "address"}], "name": "balanceOf", "outputs": [{"name": "", "type": "uint256"}], "payable": false, "stateMutability": "view", "type": "function"},
+    {"constant": false, "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}], "name": "approve", "outputs": [{"name": "", "type": "bool"}], "payable": false, "stateMutability": "nonpayable", "type": "function"},
+    {"constant": true, "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}], "name": "allowance", "outputs": [{"name": "", "type": "uint256"}], "payable": false, "stateMutability": "view", "type": "function"},
+    {"constant": false, "inputs": [{"name": "to", "type": "address"}, {"name": "amount", "type": "uint256"}], "name": "transfer", "outputs": [{"name": "", "type": "bool"}], "payable": false, "stateMutability": "nonpayable", "type": "function"},
+    {"inputs": [], "name": "symbol", "outputs": [{"type": "string"}], "stateMutability": "view", "type": "function"}
+  ],
+  
+  "router_abi": [
+    {
+      "inputs": [
+        {"internalType": "bytes", "name": "commands", "type": "bytes"},
+        {"internalType": "bytes[]", "name": "inputs", "type": "bytes[]"},
+        {"internalType": "uint256", "name": "deadline", "type": "uint256"}
+      ],
+      "name": "execute",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "address", "name": "token", "type": "address"},
+        {"internalType": "uint256", "name": "amount", "type": "uint256"}
+      ],
+      "name": "permit2Approve",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ]
+} 
