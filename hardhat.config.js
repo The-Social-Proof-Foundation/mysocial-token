@@ -1,7 +1,19 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
 require("@nomicfoundation/hardhat-verify");
-require('dotenv').config();
+require('dotenv').config({ override: true });
+const { types } = require("hardhat/config");
+
+// Debug: Check what private key hardhat config is actually using
+if (process.env.PRIVATE_KEY) {
+  const { ethers } = require("ethers");
+  try {
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY);
+    console.log("Address that will be used by Hardhat:", wallet.address);
+  } catch (error) {
+    console.log("Error creating wallet:", error.message);
+  }
+}
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
