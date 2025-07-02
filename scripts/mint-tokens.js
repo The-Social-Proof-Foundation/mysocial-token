@@ -8,7 +8,7 @@ async function main() {
   const AMOUNT_TO_MINT = "2"; 
 
   // Get signer (the address calling this script)
-  const [signer] = await ethers.getSigners();
+  const signer = await ethers.provider.getSigner();
   const signerAddress = await signer.getAddress();
   
   // The script will mint tokens to the signer's address
